@@ -67,7 +67,7 @@ function QueryInfoPageInner() {
           <div>
             <h1 className="text-xl font-semibold text-slate-900">Queries</h1>
             <p className="text-sm text-slate-500">
-              Admin-curated read-only SQL, runnable by name via <code>GET /query-info/&#123;name&#125;/data</code>.
+              Admin-curated read-only SQL, runnable by name via <code>GET /analytics/&#123;name&#125;/data</code>.
             </p>
           </div>
           <button

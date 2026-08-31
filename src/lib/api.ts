@@ -113,17 +113,17 @@ export const configsApi = {
 };
 
 export const queryInfoApi = {
-  list: (): Promise<QueryInfoEntry[]> => request<QueryInfoEntry[]>("/query-info"),
+  list: (): Promise<QueryInfoEntry[]> => request<QueryInfoEntry[]>("/analytics"),
 
   create: (input: QueryInfoCreateInput): Promise<QueryInfoEntry> =>
-    request<QueryInfoEntry>("/query-info", { method: "POST", body: JSON.stringify(input) }),
+    request<QueryInfoEntry>("/analytics", { method: "POST", body: JSON.stringify(input) }),
 
   update: (id: string, input: QueryInfoUpdateInput): Promise<QueryInfoEntry> =>
-    request<QueryInfoEntry>(`/query-info/${id}`, {
+    request<QueryInfoEntry>(`/analytics/${id}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     }),
 
   remove: (id: string): Promise<{ message: string }> =>
-    request<{ message: string }>(`/query-info/${id}`, { method: "DELETE" }),
+    request<{ message: string }>(`/analytics/${id}`, { method: "DELETE" }),
 };
