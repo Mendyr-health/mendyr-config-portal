@@ -1,5 +1,13 @@
 import { tokenStore } from "./tokenStore";
-import type { ConfigCreateInput, ConfigEntry, ConfigUpdateInput, TokenPair } from "./types";
+import type {
+  ConfigCreateInput,
+  ConfigEntry,
+  ConfigUpdateInput,
+  QueryInfoCreateInput,
+  QueryInfoEntry,
+  QueryInfoUpdateInput,
+  TokenPair,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const API_V1 = `${API_BASE}/api/v1`;
@@ -102,4 +110,20 @@ export const configsApi = {
 
   remove: (id: string): Promise<{ message: string }> =>
     request<{ message: string }>(`/configs/${id}`, { method: "DELETE" }),
+};
+
+export const queryInfoApi = {
+  list: (): Promise<QueryInfoEntry[]> => request<QueryInfoEntry[]>("/query-info"),
+
+  create: (input: QueryInfoCreateInput): Promise<QueryInfoEntry> =>
+    request<QueryInfoEntry>("/query-info", { method: "POST", body: JSON.stringify(input) }),
+
+  update: (id: string, input: QueryInfoUpdateInput): Promise<QueryInfoEntry> =>
+    request<QueryInfoEntry>(`/query-info/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+
+  remove: (id: string): Promise<{ message: string }> =>
+    request<{ message: string }>(`/query-info/${id}`, { method: "DELETE" }),
 };

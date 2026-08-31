@@ -28,6 +28,29 @@ export interface ConfigUpdateInput {
   is_active?: boolean;
 }
 
+export interface QueryInfoEntry {
+  id: string;
+  name: string;
+  query: string;
+  batch_size: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QueryInfoCreateInput {
+  name: string;
+  query: string;
+  batch_size?: number;
+  is_active?: boolean;
+}
+
+export interface QueryInfoUpdateInput {
+  query?: string;
+  batch_size?: number;
+  is_active?: boolean;
+}
+
 export interface AccessTokenClaims {
   sub: string;
   role: string;

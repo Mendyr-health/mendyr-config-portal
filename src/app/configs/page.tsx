@@ -3,13 +3,12 @@
 import { useEffect, useState } from "react";
 
 import { ApiError, configsApi } from "@/lib/api";
-import { useAuth } from "@/lib/AuthProvider";
+import { AppHeader } from "@/components/AppHeader";
 import { AuthGuard } from "@/components/AuthGuard";
 import { ConfigFormDialog } from "@/components/ConfigFormDialog";
 import type { ConfigCreateInput, ConfigEntry, ConfigUpdateInput } from "@/lib/types";
 
 function ConfigsPageInner() {
-  const { logout } = useAuth();
   const [configs, setConfigs] = useState<ConfigEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +60,9 @@ function ConfigsPageInner() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10">
+    <>
+      <AppHeader />
+      <div className="mx-auto max-w-4xl px-4 py-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Configs</h1>
@@ -69,20 +70,12 @@ function ConfigsPageInner() {
             Key/value entries that drive UI and backend behavior.
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setCreating(true)}
-            className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
-            New config
-          </button>
-          <button
-            onClick={logout}
-            className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-          >
-            Sign out
-          </button>
-        </div>
+        <button
+          onClick={() => setCreating(true)}
+          className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
+        >
+          New config
+        </button>
       </div>
 
       {error && (
@@ -165,7 +158,8 @@ function ConfigsPageInner() {
           onSubmit={handleUpdate}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
