@@ -57,3 +57,32 @@ export interface AccessTokenClaims {
   type: string;
   exp: number;
 }
+
+export interface DailySignups {
+  signup_date: string;
+  patients: number;
+  professionals: number;
+}
+
+export interface LocationBreakdown {
+  city: string;
+  state: string;
+  patient_count: number;
+}
+
+export interface DashboardOverview {
+  total_patients: number;
+  total_professionals: number;
+  professionals_by_verification_status: Record<string, number>;
+  total_bookings: number;
+  bookings_by_status: Record<string, number>;
+  daily_signups: DailySignups[];
+  top_locations: LocationBreakdown[];
+}
+
+export interface DashboardFilters {
+  city?: string;
+  state?: string;
+  date_from?: string;
+  date_to?: string;
+}

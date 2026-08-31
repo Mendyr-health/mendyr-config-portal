@@ -11,7 +11,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (role === undefined) return;
-    router.replace(role ? "/configs" : "/login");
+    router.replace(role ? "/dashboard" : "/login");
   }, [role, router]);
 
   return null;

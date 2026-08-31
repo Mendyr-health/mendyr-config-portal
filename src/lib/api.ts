@@ -3,6 +3,8 @@ import type {
   ConfigCreateInput,
   ConfigEntry,
   ConfigUpdateInput,
+  DashboardFilters,
+  DashboardOverview,
   QueryInfoCreateInput,
   QueryInfoEntry,
   QueryInfoUpdateInput,
@@ -135,6 +137,18 @@ export const configsApi = {
 
   remove: (id: string): Promise<{ message: string }> =>
     request<{ message: string }>(`/configs/${id}`, { method: "DELETE" }),
+};
+
+export const dashboardApi = {
+  getOverview: (filters: DashboardFilters = {}): Promise<DashboardOverview> => {
+    const params = new URLSearchParams();
+    if (filters.city) params.set("city", filters.city);
+    if (filters.state) params.set("state", filters.state);
+    if (filters.date_from) params.set("date_from", filters.date_from);
+    if (filters.date_to) params.set("date_to", filters.date_to);
+    const qs = params.toString();
+    return request<DashboardOverview>(`/admin/dashboard${qs ? `?${qs}` : ""}`);
+  },
 };
 
 export const queryInfoApi = {
