@@ -3,6 +3,8 @@ import type {
   ConfigCreateInput,
   ConfigEntry,
   ConfigUpdateInput,
+  DashboardFilters,
+  DashboardOverview,
   QueryInfoCreateInput,
   QueryInfoEntry,
   QueryInfoUpdateInput,
@@ -34,6 +36,31 @@ async function throwApiError(res: Response): Promise<never> {
     // no JSON body — keep the default message
   }
   throw new ApiError(res.status, message, code);
+}
+
+interface Envelope<T> {
+  success: boolean;
+  data: T;
+  meta: unknown;
+  error: { code: string; message: string } | null;
+}
+
+function isEnvelope(body: unknown): body is Envelope<unknown> {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "success" in body &&
+    "data" in body &&
+    "error" in body
+  );
+}
+
+/** The backend wraps every response in {success, data, meta, error} — unwrap to `data` on
+ * success. Kept as a standalone helper (not folded into `request<T>` alone) since `login`/
+ * `tryRefresh` parse a response from a plain `fetch` call, not `request<T>`. */
+async function unwrap<T>(res: Response): Promise<T> {
+  const body = (await res.json()) as unknown;
+  return (isEnvelope(body) ? body.data : body) as T;
 }
 
 interface RequestOptions extends RequestInit {
@@ -71,7 +98,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  return unwrap<T>(res);
 }
 
 async function tryRefresh(): Promise<boolean> {
@@ -85,7 +112,7 @@ async function tryRefresh(): Promise<boolean> {
   });
   if (!res.ok) return false;
 
-  tokenStore.setTokens((await res.json()) as TokenPair);
+  tokenStore.setTokens(await unwrap<TokenPair>(res));
   return true;
 }
 
@@ -96,7 +123,7 @@ export async function login(email: string, password: string): Promise<TokenPair>
     body: JSON.stringify({ email, password }),
   });
   if (!res.ok) await throwApiError(res);
-  return (await res.json()) as TokenPair;
+  return unwrap<TokenPair>(res);
 }
 
 export const configsApi = {
@@ -110,6 +137,18 @@ export const configsApi = {
 
   remove: (id: string): Promise<{ message: string }> =>
     request<{ message: string }>(`/configs/${id}`, { method: "DELETE" }),
+};
+
+export const dashboardApi = {
+  getOverview: (filters: DashboardFilters = {}): Promise<DashboardOverview> => {
+    const params = new URLSearchParams();
+    if (filters.city) params.set("city", filters.city);
+    if (filters.state) params.set("state", filters.state);
+    if (filters.date_from) params.set("date_from", filters.date_from);
+    if (filters.date_to) params.set("date_to", filters.date_to);
+    const qs = params.toString();
+    return request<DashboardOverview>(`/admin/dashboard${qs ? `?${qs}` : ""}`);
+  },
 };
 
 export const queryInfoApi = {

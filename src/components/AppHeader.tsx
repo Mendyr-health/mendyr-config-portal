@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/AuthProvider";
 
 const NAV_LINKS = [
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/configs", label: "Configs" },
   { href: "/query-info", label: "Queries" },
 ];
