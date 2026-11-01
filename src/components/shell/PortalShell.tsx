@@ -128,7 +128,7 @@ function SidebarContent({
               )}
               <ul className="space-y-0.5">
                 {items.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  const active = [item.href, ...(item.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
                   return (
                     <li key={item.href}>
                       <Link

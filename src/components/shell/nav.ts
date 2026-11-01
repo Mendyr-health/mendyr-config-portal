@@ -6,6 +6,8 @@ export interface NavItem {
   icon: IconName;
   /** The backend only lets admin / super_admin call these endpoints at all. */
   adminOnly?: boolean;
+  /** Other paths that should highlight this item. */
+  also?: string[];
 }
 
 export const NAV: Array<{ section: string; items: NavItem[] }> = [
@@ -26,7 +28,7 @@ export const NAV: Array<{ section: string; items: NavItem[] }> = [
     section: "Product",
     items: [
       { href: "/catalogue", label: "Catalogue", icon: "grid" },
-      { href: "/app-config", label: "App Config", icon: "sliders", adminOnly: true },
+      { href: "/app-config", label: "App Config", icon: "sliders", adminOnly: true, also: ["/configs"] },
     ],
   },
   {

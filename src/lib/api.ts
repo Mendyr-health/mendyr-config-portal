@@ -157,6 +157,8 @@ export const configsApi = {
 
   remove: (id: string): Promise<{ message: string }> =>
     request<{ message: string }>(`/configs/${id}`, { method: "DELETE" }),
+
+  toggle: (id: string): Promise<ConfigEntry> => request<ConfigEntry>(`/configs/${id}/toggle`, { method: "PATCH" }),
 };
 
 export const dashboardApi = {
