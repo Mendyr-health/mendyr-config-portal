@@ -1,140 +1,122 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/Button";
+import { ErrorState } from "@/components/ui/Card";
+import { Field, Input, Textarea } from "@/components/ui/Field";
+import { Modal } from "@/components/ui/Overlay";
+import { Switch } from "@/components/ui/Switch";
+import { errorMessage } from "@/lib/api";
 import type { ConfigCreateInput, ConfigEntry, ConfigUpdateInput } from "@/lib/types";
 
 interface Props {
   /** Present when editing an existing entry; absent when creating a new one. */
   config?: ConfigEntry;
+  /** Keys owned by the typed registry — can't be created here. */
+  reservedKeys: string[];
   onCancel: () => void;
   onSubmit: (input: ConfigCreateInput | ConfigUpdateInput) => Promise<void>;
 }
 
-export function ConfigFormDialog({ config, onCancel, onSubmit }: Props) {
+/** Generic JSON editor for custom (unregistered) keys, with live JSON validation. */
+export function ConfigFormDialog({ config, reservedKeys, onCancel, onSubmit }: Props) {
   const isEditing = Boolean(config);
   const [key, setKey] = useState(config?.key ?? "");
-  const [valueText, setValueText] = useState(
-    config ? JSON.stringify(config.value, null, 2) : '""'
-  );
+  const [valueText, setValueText] = useState(config ? JSON.stringify(config.value, null, 2) : "{\n  \n}");
   const [description, setDescription] = useState(config?.description ?? "");
   const [isActive, setIsActive] = useState(config?.is_active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    let parsedValue: unknown;
+  const parsed = useMemo(() => {
     try {
-      parsedValue = JSON.parse(valueText);
-    } catch {
-      setError('Value must be valid JSON — e.g. "some string", 42, true, or {"a": 1}.');
-      return;
+      return { ok: true as const, value: JSON.parse(valueText) as unknown };
+    } catch (e) {
+      return { ok: false as const, message: e instanceof Error ? e.message : "Invalid JSON" };
     }
+  }, [valueText]);
 
+  const keyTrim = key.trim();
+  const keyError = !isEditing && keyTrim && reservedKeys.includes(keyTrim) ? "This key has a typed editor in App Config." : null;
+
+  async function handleSubmit() {
+    if (!parsed.ok || keyError || (!isEditing && !keyTrim)) return;
+    setError(null);
     setSubmitting(true);
     try {
       if (isEditing) {
-        await onSubmit({
-          value: parsedValue,
-          description: description || null,
-          is_active: isActive,
-        } satisfies ConfigUpdateInput);
+        await onSubmit({ value: parsed.value, description: description || null, is_active: isActive } satisfies ConfigUpdateInput);
       } else {
-        if (!key.trim()) {
-          setError("Key is required.");
-          setSubmitting(false);
-          return;
-        }
-        await onSubmit({
-          key: key.trim(),
-          value: parsedValue,
-          description: description || null,
-          is_active: isActive,
-        } satisfies ConfigCreateInput);
+        await onSubmit({ key: keyTrim, value: parsed.value, description: description || null, is_active: isActive } satisfies ConfigCreateInput);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(errorMessage(err));
+    } finally {
       setSubmitting(false);
-      return;
     }
-    setSubmitting(false);
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-slate-900">
-          {isEditing ? `Edit ${config?.key}` : "New config"}
-        </h2>
-
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Key</label>
-            <input
-              type="text"
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              disabled={isEditing}
-              placeholder="MAX_BOOKING_RADIUS_KM"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono disabled:bg-slate-100 disabled:text-slate-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Value (JSON)</label>
-            <textarea
+    <Modal
+      open
+      onClose={submitting ? () => {} : onCancel}
+      title={isEditing ? `Edit ${config?.key}` : "New custom key"}
+      description="Free-form JSON stored as-is. Prefer a typed key in App Config where one exists."
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSubmit}
+            loading={submitting}
+            disabled={!parsed.ok || !!keyError || (!isEditing && !keyTrim)}
+          >
+            {isEditing ? "Save changes" : "Create"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Key" error={keyError} hint={isEditing ? "Keys can't be renamed." : "e.g. MAX_BOOKING_RADIUS_KM or promo.diwali"}>
+          {(id, d) => (
+            <Input id={id} aria-describedby={d} value={key} onChange={(e) => setKey(e.target.value)} disabled={isEditing} className="font-mono" invalid={!!keyError} data-autofocus />
+          )}
+        </Field>
+        <Field
+          label="Value (JSON)"
+          error={!parsed.ok ? parsed.message : undefined}
+          hint={parsed.ok ? "Valid JSON" : undefined}
+          aside={
+            parsed.ok ? (
+              <button type="button" className="text-brand-700 hover:underline" onClick={() => setValueText(JSON.stringify(parsed.value, null, 2))}>
+                Format
+              </button>
+            ) : undefined
+          }
+        >
+          {(id, d) => (
+            <Textarea
+              id={id}
+              aria-describedby={d}
               value={valueText}
               onChange={(e) => setValueText(e.target.value)}
-              rows={5}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono"
+              rows={10}
+              spellCheck={false}
+              invalid={!parsed.ok}
+              className="font-mono text-[13px]"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Description <span className="font-normal text-slate-400">(optional)</span>
-            </label>
-            <input
-              type="text"
-              value={description ?? ""}
-              onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
-            />
-            Active
-          </label>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {submitting ? "Saving…" : isEditing ? "Save changes" : "Create"}
-            </button>
-          </div>
-        </form>
+          )}
+        </Field>
+        <Field label="Description" aside="optional">
+          {(id) => <Input id={id} value={description ?? ""} onChange={(e) => setDescription(e.target.value)} />}
+        </Field>
+        <Switch label="Active" description="Inactive keys are kept but ignored." checked={isActive} onChange={setIsActive} />
+        {error && <ErrorState message={error} />}
       </div>
-    </div>
+    </Modal>
   );
 }

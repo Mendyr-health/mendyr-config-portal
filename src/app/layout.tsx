@@ -1,25 +1,27 @@
 import type { Metadata } from "next";
 import { Inter, Outfit } from "next/font/google";
 
+import { ToastProvider } from "@/components/ui/Toast";
 import { AuthProvider } from "@/lib/AuthProvider";
 
 import "./globals.css";
 
-// Same two families as mendyr-frontend (apps/patient/src/app/layout.tsx) — Inter for body
-// text, Outfit for headings — so this portal matches the product's visual identity.
+// Same two families as the Mendyr apps — Inter for body text, Outfit for headings.
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
 const outfit = Outfit({ variable: "--font-outfit", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Mendyr Config Portal",
-  description: "Admin portal for managing Mendyr backend config entries.",
+  title: { default: "Mendyr Admin", template: "%s · Mendyr Admin" },
+  description: "Mendyr super-admin console: verification, operations and app configuration.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable}`}>
-      <body className="min-h-screen bg-[#F7F9FC] font-sans text-slate-900 antialiased">
-        <AuthProvider>{children}</AuthProvider>
+      <body className="min-h-screen bg-page font-sans text-[14px] text-slate-900 antialiased">
+        <AuthProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );
