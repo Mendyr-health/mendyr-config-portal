@@ -141,9 +141,12 @@ export default function BookingsPage() {
           />
         </div>
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-end">
-          <Field label="Search" className="w-full md:max-w-sm">
-            {() => <SearchInput value={q} onChange={setQ} placeholder="Code, patient, phone or service" />}
-          </Field>
+          <div className="w-full md:max-w-sm">
+            <p className="mb-1.5 text-[13px] font-medium text-slate-700" aria-hidden>
+              Search
+            </p>
+            <SearchInput value={q} onChange={setQ} placeholder="Code, patient, phone or service" ariaLabel="Search bookings by code, patient, phone or service" />
+          </div>
           <div className="flex gap-3">
             <Field label="From">
               {(id) => <Input id={id} type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />}
