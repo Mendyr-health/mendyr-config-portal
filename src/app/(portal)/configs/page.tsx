@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 
 import { ApiError, configsApi } from "@/lib/api";
-import { AppHeader } from "@/components/AppHeader";
-import { AuthGuard } from "@/components/AuthGuard";
 import { ConfigFormDialog } from "@/components/ConfigFormDialog";
 import type { ConfigCreateInput, ConfigEntry, ConfigUpdateInput } from "@/lib/types";
 
@@ -61,8 +59,7 @@ function ConfigsPageInner() {
 
   return (
     <>
-      <AppHeader />
-      <div className="mx-auto max-w-4xl px-4 py-10">
+      <div className="w-full">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Configs</h1>
@@ -165,8 +162,8 @@ function ConfigsPageInner() {
 
 export default function ConfigsPage() {
   return (
-    <AuthGuard>
+    <>
       <ConfigsPageInner />
-    </AuthGuard>
+    </>
   );
 }

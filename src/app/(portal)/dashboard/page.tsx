@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 
 import { ApiError, dashboardApi } from "@/lib/api";
-import { AppHeader } from "@/components/AppHeader";
-import { AuthGuard } from "@/components/AuthGuard";
 import { SignupTrendChart } from "@/components/SignupTrendChart";
 import type { DashboardFilters, DashboardOverview } from "@/lib/types";
 
@@ -215,7 +213,7 @@ function DashboardPageInner() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
+    <div className="w-full">
       <div className="mb-6">
         <h1 className="font-display text-2xl font-bold text-slate-900">Dashboard</h1>
         <p className="mt-1 text-sm text-slate-500">
@@ -270,9 +268,8 @@ function DashboardPageInner() {
 
 export default function DashboardPage() {
   return (
-    <AuthGuard>
-      <AppHeader />
+    <>
       <DashboardPageInner />
-    </AuthGuard>
+    </>
   );
 }

@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 
 import { ApiError, queryInfoApi } from "@/lib/api";
-import { AppHeader } from "@/components/AppHeader";
-import { AuthGuard } from "@/components/AuthGuard";
 import { QueryInfoFormDialog } from "@/components/QueryInfoFormDialog";
 import type { QueryInfoCreateInput, QueryInfoEntry, QueryInfoUpdateInput } from "@/lib/types";
 
@@ -61,8 +59,7 @@ function QueryInfoPageInner() {
 
   return (
     <>
-      <AppHeader />
-      <div className="mx-auto max-w-4xl px-4 py-10">
+      <div className="w-full">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-slate-900">Queries</h1>
@@ -165,8 +162,8 @@ function QueryInfoPageInner() {
 
 export default function QueryInfoPage() {
   return (
-    <AuthGuard>
+    <>
       <QueryInfoPageInner />
-    </AuthGuard>
+    </>
   );
 }
