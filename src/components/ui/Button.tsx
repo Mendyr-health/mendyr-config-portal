@@ -24,6 +24,14 @@ const SIZES: Record<Size, string> = {
   icon: "h-9 w-9 justify-center rounded-lg",
 };
 
+const BASE =
+  "press inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap font-medium transition-colors disabled:cursor-not-allowed disabled:active:scale-100";
+
+/** Button styling for links (e.g. next/link) so we never nest a button inside an anchor. */
+export function buttonClass(variant: Variant = "secondary", size: Size = "md", className?: string): string {
+  return cx(BASE, VARIANTS[variant], SIZES[size], className);
+}
+
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
@@ -44,12 +52,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cx(
-        "press inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap font-medium transition-colors disabled:cursor-not-allowed disabled:active:scale-100",
-        VARIANTS[variant],
-        SIZES[size],
-        className
-      )}
+      className={buttonClass(variant, size, className)}
       {...rest}
     >
       {loading ? <Spinner size={iconSize} /> : icon ? <Icon name={icon} size={iconSize} /> : null}
