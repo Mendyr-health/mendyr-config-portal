@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 
+import { NumberField } from "@/components/config/kit";
+import { Button } from "@/components/ui/Button";
+import { ErrorState } from "@/components/ui/Card";
+import { Field, Input, Textarea } from "@/components/ui/Field";
+import { Modal } from "@/components/ui/Overlay";
+import { Switch } from "@/components/ui/Switch";
+import { errorMessage } from "@/lib/api";
 import type { QueryInfoCreateInput, QueryInfoEntry, QueryInfoUpdateInput } from "@/lib/types";
 
 interface Props {
@@ -19,127 +26,68 @@ export function QueryInfoFormDialog({ queryInfo, onCancel, onSubmit }: Props) {
   const [isActive, setIsActive] = useState(queryInfo?.is_active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const invalid = !query.trim() || (!isEditing && !name.trim()) || Number.isNaN(batchSize) || batchSize < 1 || batchSize > 500;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit() {
+    if (invalid) return;
     setError(null);
-
-    if (!query.trim()) {
-      setError("Query is required.");
-      return;
-    }
-
     setSubmitting(true);
     try {
       if (isEditing) {
-        await onSubmit({
-          query: query.trim(),
-          batch_size: batchSize,
-          is_active: isActive,
-        } satisfies QueryInfoUpdateInput);
+        await onSubmit({ query: query.trim(), batch_size: batchSize, is_active: isActive } satisfies QueryInfoUpdateInput);
       } else {
-        if (!name.trim()) {
-          setError("Name is required.");
-          setSubmitting(false);
-          return;
-        }
-        await onSubmit({
-          name: name.trim(),
-          query: query.trim(),
-          batch_size: batchSize,
-          is_active: isActive,
-        } satisfies QueryInfoCreateInput);
+        await onSubmit({ name: name.trim(), query: query.trim(), batch_size: batchSize, is_active: isActive } satisfies QueryInfoCreateInput);
       }
     } catch (err) {
-      // The backend rejects anything that isn't a single standalone SELECT — surface that
-      // message as-is, it's already written for a human reading the form.
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      // The backend rejects anything that isn't a single standalone SELECT — its message is
+      // already written for a person reading the form.
+      setError(errorMessage(err));
+    } finally {
       setSubmitting(false);
-      return;
     }
-    setSubmitting(false);
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-xl rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-slate-900">
-          {isEditing ? `Edit ${queryInfo?.name}` : "New query"}
-        </h2>
-        <p className="mt-1 text-xs text-slate-500">
-          Must be a single, standalone <code>SELECT</code> statement — the backend rejects
-          anything else.
-        </p>
-
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={isEditing}
-              placeholder="top_rated_professionals"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono disabled:bg-slate-100 disabled:text-slate-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">SQL query</label>
-            <textarea
+    <Modal
+      open
+      onClose={submitting ? () => {} : onCancel}
+      title={isEditing ? `Edit ${queryInfo?.name}` : "New query"}
+      description="A single read-only SELECT. Results are paged by the batch size."
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSubmit} loading={submitting} disabled={invalid}>
+            {isEditing ? "Save changes" : "Create"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Name" hint={isEditing ? "Names can't be changed — they're the URL." : "Used in the URL: /analytics/<name>/data"}>
+          {(id, d) => <Input id={id} aria-describedby={d} value={name} onChange={(e) => setName(e.target.value)} disabled={isEditing} className="font-mono" data-autofocus placeholder="weekly_completed_visits" />}
+        </Field>
+        <Field label="SQL">
+          {(id) => (
+            <Textarea
+              id={id}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              rows={8}
-              placeholder="SELECT id, full_name, average_rating FROM professional_profiles ORDER BY average_rating DESC"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono"
+              rows={10}
+              spellCheck={false}
+              className="font-mono text-[13px]"
+              placeholder="SELECT city, count(*) FROM addresses GROUP BY city"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Batch size</label>
-            <input
-              type="number"
-              min={1}
-              max={500}
-              value={batchSize}
-              onChange={(e) => setBatchSize(Number(e.target.value))}
-              className="mt-1 w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            <p className="mt-1 text-xs text-slate-400">
-              Max rows returned per page when this query is run.
-            </p>
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
-            />
-            Active
-          </label>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {submitting ? "Saving…" : isEditing ? "Save changes" : "Create"}
-            </button>
-          </div>
-        </form>
+          )}
+        </Field>
+        <div className="grid grid-cols-2 items-end gap-4">
+          <NumberField label="Batch size" min={1} max={500} value={batchSize} onChange={setBatchSize} unit="rows" />
+          <Switch label="Active" checked={isActive} onChange={setIsActive} className="pb-2" />
+        </div>
+        {error && <ErrorState message={error} />}
       </div>
-    </div>
+    </Modal>
   );
 }

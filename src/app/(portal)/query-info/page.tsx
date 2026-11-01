@@ -1,169 +1,243 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { ApiError, queryInfoApi } from "@/lib/api";
+import { AdminOnly } from "@/components/AuthGuard";
 import { QueryInfoFormDialog } from "@/components/QueryInfoFormDialog";
-import type { QueryInfoCreateInput, QueryInfoEntry, QueryInfoUpdateInput } from "@/lib/types";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card, CardHeader, EmptyState, ErrorState, PageHeader, Skeleton } from "@/components/ui/Card";
+import { SearchInput } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
+import { ConfirmModal } from "@/components/ui/Overlay";
+import { Pagination } from "@/components/ui/Table";
+import { useToast } from "@/components/ui/Toast";
+import { errorMessage, queryInfoApi } from "@/lib/api";
+import { cx, formatRelative } from "@/lib/format";
+import { useResource } from "@/lib/useResource";
+import type { QueryInfoCreateInput, QueryInfoEntry, QueryInfoUpdateInput, QueryResultPage } from "@/lib/types";
 
-function QueryInfoPageInner() {
-  const [queries, setQueries] = useState<QueryInfoEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default function QueryInfoPage() {
+  return (
+    <AdminOnly what="Saved queries">
+      <Queries />
+    </AdminOnly>
+  );
+}
+
+function Queries() {
+  const toast = useToast();
+  const list = useResource(async () => (await queryInfoApi.list()).sort((a, b) => a.name.localeCompare(b.name)), []);
+  const [q, setQ] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<QueryInfoEntry | null>(null);
   const [creating, setCreating] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<QueryInfoEntry | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  async function refresh() {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await queryInfoApi.list();
-      setQueries(data.sort((a, b) => a.name.localeCompare(b.name)));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load queries.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  async function handleCreate(input: QueryInfoCreateInput | QueryInfoUpdateInput) {
-    await queryInfoApi.create(input as QueryInfoCreateInput);
-    setCreating(false);
-    await refresh();
-  }
-
-  async function handleUpdate(input: QueryInfoCreateInput | QueryInfoUpdateInput) {
-    if (!editing) return;
-    await queryInfoApi.update(editing.id, input as QueryInfoUpdateInput);
-    setEditing(null);
-    await refresh();
-  }
-
-  async function handleDelete(queryInfo: QueryInfoEntry) {
-    if (!window.confirm(`Delete query "${queryInfo.name}"? This can't be undone.`)) return;
-    setDeletingId(queryInfo.id);
-    try {
-      await queryInfoApi.remove(queryInfo.id);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to delete query.");
-    } finally {
-      setDeletingId(null);
-    }
-  }
+  const queries = (list.data ?? []).filter((x) => !q || x.name.toLowerCase().includes(q.toLowerCase()));
+  const current = list.data?.find((x) => x.id === selected) ?? queries[0] ?? null;
 
   return (
     <>
-      <div className="w-full">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">Queries</h1>
-            <p className="text-sm text-slate-500">
-              Admin-curated read-only SQL, runnable by name via <code>GET /analytics/&#123;name&#125;/data</code>.
-            </p>
-          </div>
-          <button
-            onClick={() => setCreating(true)}
-            className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
+      <PageHeader
+        eyebrow="Audit"
+        title="Queries"
+        description="Saved read-only SQL, runnable by name. Results can include any table, so only admins can see or run them."
+        actions={
+          <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
             New query
-          </button>
-        </div>
+          </Button>
+        }
+      />
+      {list.error && <ErrorState message={list.error} onRetry={list.reload} className="mb-4" />}
 
-        {error && (
-          <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-        )}
-
-        <div className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Query</th>
-                <th className="px-4 py-3">Batch size</th>
-                <th className="px-4 py-3">Active</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                    Loading…
-                  </td>
-                </tr>
-              )}
-              {!loading && queries.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                    No queries yet — create the first one.
-                  </td>
-                </tr>
-              )}
-              {queries.map((q) => (
-                <tr key={q.id}>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-800">{q.name}</td>
-                  <td className="max-w-sm truncate px-4 py-3 font-mono text-xs text-slate-600">
-                    {q.query}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{q.batch_size}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={
-                        "rounded-full px-2 py-0.5 text-xs font-medium " +
-                        (q.is_active
-                          ? "bg-green-100 text-green-700"
-                          : "bg-slate-100 text-slate-500")
-                      }
-                    >
-                      {q.is_active ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => setEditing(q)}
-                      className="mr-3 text-sm font-medium text-brand-600 hover:text-brand-700"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(q)}
-                      disabled={deletingId === q.id}
-                      className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
-                    >
-                      {deletingId === q.id ? "Deleting…" : "Delete"}
-                    </button>
-                  </td>
-                </tr>
+      <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <Card padded={false} className="self-start">
+          <div className="border-b border-slate-100 p-3">
+            <SearchInput value={q} onChange={setQ} placeholder="Find a query" />
+          </div>
+          {list.loading && !list.data ? (
+            <div className="space-y-2 p-3">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full rounded-xl" />
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          ) : queries.length === 0 ? (
+            <EmptyState icon="database" title={q ? "No matches" : "No saved queries"} />
+          ) : (
+            <ul className="scrollbar-thin max-h-[60vh] overflow-y-auto p-2">
+              {queries.map((x) => (
+                <li key={x.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(x.id)}
+                    aria-current={current?.id === x.id ? "true" : undefined}
+                    className={cx(
+                      "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left",
+                      current?.id === x.id ? "bg-brand-50 text-brand-800" : "hover:bg-slate-50"
+                    )}
+                  >
+                    <Icon name="database" size={16} className="text-slate-400" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-mono text-[13px] font-medium">{x.name}</span>
+                      <span className="text-xs text-slate-400">Updated {formatRelative(x.updated_at)}</span>
+                    </span>
+                    {!x.is_active && <Badge>Off</Badge>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
 
-        {creating && (
-          <QueryInfoFormDialog onCancel={() => setCreating(false)} onSubmit={handleCreate} />
-        )}
-        {editing && (
-          <QueryInfoFormDialog
-            queryInfo={editing}
-            onCancel={() => setEditing(null)}
-            onSubmit={handleUpdate}
-          />
+        {current ? (
+          <QueryPanel key={current.id} entry={current} onEdit={() => setEditing(current)} onDelete={() => setDeleting(current)} />
+        ) : (
+          !list.loading && <EmptyState icon="code" title="Create your first query" description="Save a SELECT once, then run it any time from here." />
         )}
       </div>
+
+      {(creating || editing) && (
+        <QueryInfoFormDialog
+          queryInfo={editing ?? undefined}
+          onCancel={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onSubmit={async (input) => {
+            if (editing) await queryInfoApi.update(editing.id, input as QueryInfoUpdateInput);
+            else {
+              const created = await queryInfoApi.create(input as QueryInfoCreateInput);
+              setSelected(created.id);
+            }
+            toast.success(editing ? "Query saved" : "Query created");
+            setCreating(false);
+            setEditing(null);
+            await list.reload();
+          }}
+        />
+      )}
+
+      <ConfirmModal
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        busy={busy}
+        tone="danger"
+        title={`Delete ${deleting?.name}?`}
+        description="Anything that calls this query by name will stop working. This can't be undone."
+        confirmLabel="Delete"
+        onConfirm={async () => {
+          if (!deleting) return;
+          setBusy(true);
+          try {
+            await queryInfoApi.remove(deleting.id);
+            toast.success(`${deleting.name} deleted`);
+            setDeleting(null);
+            setSelected(null);
+            await list.reload();
+          } catch (err) {
+            toast.error("Couldn't delete", errorMessage(err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
     </>
   );
 }
 
-export default function QueryInfoPage() {
+function QueryPanel({ entry, onEdit, onDelete }: { entry: QueryInfoEntry; onEdit: () => void; onDelete: () => void }) {
+  const [result, setResult] = useState<QueryResultPage | null>(null);
+  const [page, setPage] = useState(1);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run(p: number) {
+    setRunning(true);
+    setError(null);
+    try {
+      setResult(await queryInfoApi.run(entry.name, p));
+      setPage(p);
+    } catch (err) {
+      setError(errorMessage(err, "The query failed."));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const columns = result ? Array.from(new Set(result.items.flatMap((r) => Object.keys(r)))) : [];
+
   return (
-    <>
-      <QueryInfoPageInner />
-    </>
+    <div className="min-w-0 space-y-6">
+      <Card>
+        <CardHeader
+          title={<span className="font-mono">{entry.name}</span>}
+          description={`Batch size ${entry.batch_size} · ${entry.is_active ? "active" : "inactive"}`}
+          actions={
+            <>
+              <Button variant="ghost" size="sm" icon="edit" onClick={onEdit}>
+                Edit
+              </Button>
+              <Button variant="ghost" size="sm" icon="trash" className="hover:bg-danger-50 hover:text-danger-600" onClick={onDelete}>
+                Delete
+              </Button>
+              <Button variant="primary" size="sm" icon="play" loading={running} onClick={() => void run(1)} disabled={!entry.is_active}>
+                Run
+              </Button>
+            </>
+          }
+        />
+        <pre className="scrollbar-thin max-h-64 overflow-auto rounded-xl bg-slate-900 p-4 font-mono text-[13px] leading-relaxed text-slate-100">{entry.query}</pre>
+        {!entry.is_active && <p className="mt-2 text-xs text-warning-700">Inactive queries can&apos;t be run. Edit it to turn it back on.</p>}
+      </Card>
+
+      {error && <ErrorState message={error} onRetry={() => void run(page)} />}
+
+      {result && (
+        <Card padded={false}>
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+            <p className="text-sm font-semibold text-slate-900">Results</p>
+            <Badge>
+              {result.items.length} {result.items.length === 1 ? "row" : "rows"} on this page
+            </Badge>
+          </div>
+          {result.items.length === 0 ? (
+            <EmptyState icon="inbox" title="No rows" />
+          ) : (
+            <div className="scrollbar-thin overflow-x-auto">
+              <table className={cx("w-full text-left text-[13px]", running && "opacity-60")}>
+                <thead className="bg-slate-50">
+                  <tr>
+                    {columns.map((c) => (
+                      <th key={c} scope="col" className="whitespace-nowrap px-4 py-2 font-mono text-xs font-semibold text-slate-500">
+                        {c}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.items.map((row, i) => (
+                    <tr key={i} className="border-t border-slate-100">
+                      {columns.map((c) => (
+                        <td key={c} className="max-w-xs truncate whitespace-nowrap px-4 py-2 font-mono text-slate-700" title={cell(row[c])}>
+                          {row[c] === null || row[c] === undefined ? <span className="text-slate-300">null</span> : cell(row[c])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <Pagination page={page} pageSize={result.page_size} hasNext={result.has_next} onPage={(p) => void run(p)} />
+        </Card>
+      )}
+    </div>
   );
+}
+
+function cell(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  return typeof v === "object" ? JSON.stringify(v) : String(v);
 }
