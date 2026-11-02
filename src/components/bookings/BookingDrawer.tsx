@@ -2,18 +2,19 @@
 
 import { useState, type ReactNode } from "react";
 
+import { DocumentViewer, useExpiringLinks, type ExpiringLinks } from "@/components/documents/DocumentViewer";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonClass } from "@/components/ui/Button";
 import { Callout, DetailRow, ErrorState, Skeleton } from "@/components/ui/Card";
 import { Field, Textarea } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { ConfirmModal, Drawer } from "@/components/ui/Overlay";
 import { useToast } from "@/components/ui/Toast";
 import { adminApi, errorMessage } from "@/lib/api";
-import { cx, formatDateTime, formatINR, formatPhone, humanize } from "@/lib/format";
-import { BOOKING_STATUS_LABELS } from "@/lib/labels";
+import { cx, formatBytes, formatDateTime, formatINR, formatPhone, formatRelative, humanize } from "@/lib/format";
+import { BOOKING_STATUS_LABELS, MEDICAL_DOCUMENT_LABELS, previewKind } from "@/lib/labels";
 import { useResource } from "@/lib/useResource";
-import type { AdminBookingDetail } from "@/lib/types";
+import type { AdminBookingDetail, MedicalDocument } from "@/lib/types";
 
 const CANCELLABLE = ["created", "searching", "assigned", "confirmed", "en_route"];
 const REOPENABLE = ["assigned", "confirmed"];
@@ -42,6 +43,14 @@ export function BookingDrawer({
   const toast = useToast();
   const res = useResource(() => adminApi.booking(bookingId!), [bookingId], Boolean(bookingId));
   const b = res.data && res.data.id === bookingId ? res.data : null;
+  const links = useExpiringLinks({
+    data: b,
+    active: Boolean(b?.documents?.length),
+    refetch: () => adminApi.booking(bookingId!),
+    apply: (fresh) => {
+      if (fresh.id === bookingId) res.setData(fresh);
+    },
+  });
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -109,7 +118,7 @@ export function BookingDrawer({
           ))}
         </div>
       )}
-      {b && <BookingDetail b={b} />}
+      {b && <BookingDetail b={b} links={links} />}
 
       <ConfirmModal
         open={cancelOpen}
@@ -152,7 +161,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function BookingDetail({ b }: { b: AdminBookingDetail }) {
+function BookingDetail({ b, links }: { b: AdminBookingDetail; links: ExpiringLinks<AdminBookingDetail> }) {
+  const docs = b.documents ?? [];
   return (
     <div className="space-y-4">
       {b.status === "failed" && <Callout tone="danger" icon="alert" title="No professional was available">Nobody accepted before the visit time. The patient was notified.</Callout>}
@@ -214,6 +224,14 @@ function BookingDetail({ b }: { b: AdminBookingDetail }) {
         </div>
       </Section>
 
+      <Section title="Documents">
+        {docs.length === 0 ? (
+          <p className="text-sm text-slate-500">The patient didn&apos;t attach any documents.</p>
+        ) : (
+          <BookingDocuments docs={docs} links={links} />
+        )}
+      </Section>
+
       <Section title="Visit notes">
         <dl className="divide-y divide-slate-100">
           <DetailRow label="Patient notes">{b.patient_notes ?? <span className="font-normal text-slate-400">None</span>}</DetailRow>
@@ -234,6 +252,70 @@ function BookingDetail({ b }: { b: AdminBookingDetail }) {
         </dl>
       </Section>
     </div>
+  );
+}
+
+function medicalLabel(type: string): string {
+  return MEDICAL_DOCUMENT_LABELS[type] ?? humanize(type);
+}
+
+function BookingDocuments({ docs, links }: { docs: MedicalDocument[]; links: ExpiringLinks<AdminBookingDetail> }) {
+  const [viewing, setViewing] = useState<string | null>(null);
+  const viewed = viewing ? docs.find((d) => d.id === viewing) ?? null : null;
+  const freshUrl = (id: string) => (fresh: AdminBookingDetail) => fresh.documents?.find((d) => d.id === id)?.view_url;
+  return (
+    <>
+      <ul className="divide-y divide-slate-100">
+        {docs.map((doc) => {
+          const kind = previewKind(doc.content_type, doc.view_url);
+          return (
+            <li key={doc.id} className="flex items-center gap-3 py-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                <Icon name={kind === "image" ? "image" : "file"} size={17} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-800">{doc.title || medicalLabel(doc.document_type)}</p>
+                <p className="text-xs text-slate-400">
+                  <Badge className="mr-1.5">{medicalLabel(doc.document_type)}</Badge>
+                  {formatBytes(doc.size_bytes)} · added {formatRelative(doc.created_at)}
+                </p>
+              </div>
+              {kind === "file" ? (
+                <a
+                  href={doc.view_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => links.openFresh(e, freshUrl(doc.id))}
+                  className={buttonClass("secondary", "sm")}
+                >
+                  <Icon name="external" size={15} />
+                  Open
+                </a>
+              ) : (
+                <Button size="sm" variant="secondary" icon="eye" onClick={() => setViewing(doc.id)}>
+                  View
+                </Button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {viewed && (
+        <DocumentViewer
+          open
+          onClose={() => setViewing(null)}
+          title={viewed.title || medicalLabel(viewed.document_type)}
+          subtitle={`${medicalLabel(viewed.document_type)} · ${formatBytes(viewed.size_bytes)} · added ${formatDateTime(viewed.created_at)}`}
+          url={viewed.view_url}
+          contentType={viewed.content_type}
+          links={{
+            onPreviewError: links.onPreviewError,
+            isBroken: links.isBroken,
+            openFresh: (e) => links.openFresh(e, freshUrl(viewed.id)),
+          }}
+        />
+      )}
+    </>
   );
 }
 
