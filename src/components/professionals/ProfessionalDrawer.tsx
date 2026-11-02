@@ -2,6 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 
+import { useExpiringLinks } from "@/components/documents/DocumentViewer";
+import { ProfessionalDocuments } from "@/components/professionals/ProfessionalDocuments";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Callout, DetailRow, ErrorState, Skeleton } from "@/components/ui/Card";
@@ -15,17 +17,14 @@ import {
   cx,
   formatDateTime,
   formatPhone,
-  formatRelative,
   humanize,
   initials,
 } from "@/lib/format";
 import {
   BOOKING_STATUS_LABELS,
   DAY_NAMES,
-  DOCUMENT_LABELS,
   describeActivity,
   formatClock,
-  isImageUrl,
   professionLabel,
 } from "@/lib/labels";
 import { useResource } from "@/lib/useResource";
@@ -51,12 +50,24 @@ export function ProfessionalDrawer({
   );
   const [decision, setDecision] = useState<Decision | null>(null);
   const p = res.data && res.data.id === professionalId ? res.data : null;
+  const links = useExpiringLinks({
+    data: p,
+    active: Boolean(p?.documents.length),
+    refetch: () => adminApi.professional(professionalId!),
+    apply: (fresh) => {
+      if (fresh.id === professionalId) res.setData(fresh);
+    },
+  });
+
+  function applyUpdate(updated: AdminProfessionalDetail) {
+    res.setData(updated);
+    onChanged?.(updated);
+  }
 
   async function submit(input: ReviewDecisionInput) {
     if (!p) return;
     const updated = await adminApi.review(p.id, input);
-    res.setData(updated);
-    onChanged?.(updated);
+    applyUpdate(updated);
     const verb = input.decision === "approved" ? "approved" : input.decision === "rejected" ? "rejected" : "moved to review";
     toast.success(`${updated.full_name} ${verb}`, input.decision === "approved" ? "They can now receive visit requests." : undefined);
     setDecision(null);
@@ -112,7 +123,12 @@ export function ProfessionalDrawer({
     >
       {res.error && <ErrorState message={res.error} onRetry={res.reload} />}
       {!p && !res.error && <DrawerSkeleton />}
-      {p && <ProfessionalDetail p={p} />}
+      {p && (
+        <ProfessionalDetail
+          p={p}
+          documents={<ProfessionalDocuments p={p} canWrite={canWrite} links={links} onUpdated={applyUpdate} />}
+        />
+      )}
       {p && decision && (
         <ReviewModal name={p.full_name} decision={decision} onClose={() => setDecision(null)} onSubmit={submit} />
       )}
@@ -132,7 +148,7 @@ function Section({ title, children, aside }: { title: string; children: ReactNod
   );
 }
 
-function ProfessionalDetail({ p }: { p: AdminProfessionalDetail }) {
+function ProfessionalDetail({ p, documents }: { p: AdminProfessionalDetail; documents: ReactNode }) {
   const byDay = DAY_NAMES.map((_, d) => p.availability.filter((s) => s.day_of_week === d));
   const totalBookings = Object.values(p.bookings_by_status).reduce((a, b) => a + b, 0);
   return (
@@ -253,42 +269,7 @@ function ProfessionalDetail({ p }: { p: AdminProfessionalDetail }) {
         </ul>
       </Section>
 
-      <Section title="Documents" aside={<span className="text-xs text-slate-400">{p.documents.length} uploaded</span>}>
-        {p.documents.length === 0 ? (
-          <Callout tone="warning" icon="file">No documents uploaded yet.</Callout>
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {p.documents.map((doc) => (
-              <li key={doc.id} className="overflow-hidden rounded-xl border border-slate-200">
-                <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="group block">
-                  {isImageUrl(doc.file_url) ? (
-                    <img
-                      src={doc.file_url}
-                      alt={DOCUMENT_LABELS[doc.document_type] ?? doc.document_type}
-                      className="h-36 w-full bg-slate-100 object-cover transition-opacity group-hover:opacity-90"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <span className="flex h-36 w-full flex-col items-center justify-center gap-2 bg-slate-50 text-slate-400">
-                      <Icon name="file" size={28} />
-                      <span className="text-xs">Open document</span>
-                    </span>
-                  )}
-                  <span className="flex items-center justify-between gap-2 px-3 py-2">
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-slate-800">
-                        {DOCUMENT_LABELS[doc.document_type] ?? humanize(doc.document_type)}
-                      </span>
-                      <span className="text-xs text-slate-400">Uploaded {formatRelative(doc.created_at)}</span>
-                    </span>
-                    <Icon name="external" size={15} className="text-slate-400 group-hover:text-brand-600" />
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
+      {documents}
 
       <Section title="Decision history">
         {p.history.length === 0 ? (
@@ -299,7 +280,13 @@ function ProfessionalDetail({ p }: { p: AdminProfessionalDetail }) {
               const meta = h.metadata ?? {};
               const reason = typeof meta.reason === "string" ? meta.reason : null;
               const note = typeof meta.note === "string" ? meta.note : null;
-              const tone = h.action.endsWith("approved") ? "bg-success-600" : h.action.endsWith("rejected") ? "bg-danger-600" : "bg-brand-600";
+              const tone = h.action.endsWith("approved")
+                ? "bg-success-600"
+                : h.action.endsWith("rejected")
+                  ? "bg-danger-600"
+                  : h.action.endsWith("delete")
+                    ? "bg-slate-400"
+                    : "bg-brand-600";
               return (
                 <li key={h.id} className="relative">
                   <span className={cx("absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-white", tone)} />

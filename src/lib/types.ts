@@ -158,10 +158,30 @@ export interface AdminProfessionalListItem {
 export interface AdminDocument {
   id: string;
   document_type: string;
-  file_url: string;
   verification_status: VerificationStatus;
   rejection_reason: string | null;
+  content_type: string | null;
+  /** Presigned link, valid ~5 minutes. Refetch the professional for a fresh one; never store it. */
+  view_url: string;
   reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface DocumentReviewInput {
+  decision: "approved" | "rejected";
+  rejection_reason?: string | null;
+}
+
+/** A patient's medical document (prescription, lab report…) attached to a booking. */
+export interface MedicalDocument {
+  id: string;
+  document_type: "prescription" | "lab_report" | "referral" | "other" | string;
+  title: string | null;
+  booking_id: string | null;
+  content_type: string;
+  size_bytes: number;
+  /** Presigned link, valid ~5 minutes. */
+  view_url: string;
   created_at: string;
 }
 
@@ -282,6 +302,7 @@ export interface AdminBookingDetail extends AdminBookingListItem {
   vitals_recorded: string | null;
   review_rating: number | null;
   timeline: StatusEvent[];
+  documents?: MedicalDocument[];
 }
 
 // ── Catalogue ───────────────────────────────────────────────────────────
@@ -368,6 +389,14 @@ export interface RegistryEntry {
   is_overridden: boolean;
   updated_at: string | null;
   id: string | null;
+}
+
+/** The public app bundle (`GET /configs/app`). Only the keys the portal reads are typed. */
+export interface AppBundle {
+  version: string;
+  configs: {
+    "pro.settings"?: { required_documents?: string[] } & Record<string, unknown>;
+  } & Record<string, unknown>;
 }
 
 // ── Dashboard KPIs ──────────────────────────────────────────────────────

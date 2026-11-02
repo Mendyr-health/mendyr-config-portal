@@ -26,6 +26,18 @@ export const DOCUMENT_LABELS: Record<string, string> = {
 
 export const DOCUMENT_TYPES = Object.keys(DOCUMENT_LABELS);
 
+export function documentLabel(type: string | null | undefined): string {
+  if (!type) return "document";
+  return DOCUMENT_LABELS[type] ?? humanize(type);
+}
+
+export const MEDICAL_DOCUMENT_LABELS: Record<string, string> = {
+  prescription: "Prescription",
+  lab_report: "Lab report",
+  referral: "Referral",
+  other: "Other document",
+};
+
 export const VERIFICATION_LABELS: Record<string, string> = {
   pending: "Pending",
   in_review: "In review",
@@ -81,6 +93,20 @@ export function isImageUrl(url: string): boolean {
   return /\.(png|jpe?g|webp|gif|avif|bmp|svg)(\?.*)?$/i.test(url) || url.startsWith("data:image/");
 }
 
+/** How a stored file can be previewed in the browser. HEIC/HEIF are images but most browsers
+ * can't draw them, so they're opened in a new tab like a PDF. */
+export function previewKind(contentType: string | null | undefined, url: string): "image" | "pdf" | "file" {
+  const ct = (contentType ?? "").toLowerCase();
+  if (ct === "application/pdf") return "pdf";
+  if (ct === "image/heic" || ct === "image/heif") return "file";
+  if (ct.startsWith("image/")) return "image";
+  if (!ct) {
+    if (/\.pdf(\?.*)?$/i.test(url)) return "pdf";
+    if (isImageUrl(url)) return "image";
+  }
+  return "file";
+}
+
 /** One readable sentence per audit entry: "Kartik approved a nurse" etc. The activity API
  * carries the actor's name but not the subject's, so the subject is described generically
  * unless the caller knows it. */
@@ -111,6 +137,12 @@ export function describeActivity(a: AdminActivity, subjectName?: string): string
       return `${who} created ${subject ?? `the ${a.entity_id} config`}`;
     case "config.toggle":
       return `${who} toggled ${subject ?? `the ${a.entity_id} config`}`;
+    case "document.approved":
+      return `${who} approved ${docOf(subject, meta.document_type)}`;
+    case "document.rejected":
+      return `${who} rejected ${docOf(subject, meta.document_type)}`;
+    case "document.delete":
+      return `${who} deleted ${docOf(subject, meta.document_type)}`;
     case "catalog.category.save":
       return `${who} saved the ${typeof meta.name === "string" ? `“${meta.name}”` : ""} category`.replace("  ", " ");
     case "catalog.service.save":
@@ -118,4 +150,11 @@ export function describeActivity(a: AdminActivity, subjectName?: string): string
     default:
       return `${who} · ${humanize(a.action)}`;
   }
+}
+
+/** "Priya's government ID" / "a professional's nursing council certificate". */
+function docOf(subject: string | null, type: unknown): string {
+  const label = typeof type === "string" ? documentLabel(type) : "document";
+  const lower = label.charAt(0).toLowerCase() + label.slice(1);
+  return `${subject ? `${subject}'s` : "a professional's"} ${lower}`;
 }

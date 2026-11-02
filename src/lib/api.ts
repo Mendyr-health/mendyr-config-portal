@@ -7,6 +7,7 @@ import type {
   AdminProfessionalDetail,
   AdminProfessionalListItem,
   AdminUserListItem,
+  AppBundle,
   CategoryAdmin,
   CategoryWriteInput,
   ConfigCreateInput,
@@ -14,6 +15,7 @@ import type {
   ConfigUpdateInput,
   DashboardFilters,
   DashboardOverview,
+  DocumentReviewInput,
   QueryInfoCreateInput,
   QueryInfoEntry,
   QueryInfoUpdateInput,
@@ -215,6 +217,9 @@ export const registryApi = {
     request<ConfigEntry>(`/configs/by-key/${encodeURIComponent(key)}`, { method: "PUT", body: json({ value }) }),
   reset: (id: string): Promise<{ message: string }> =>
     request<{ message: string }>(`/configs/${id}`, { method: "DELETE" }),
+  /** The resolved public bundle the apps run on (defaults filled in). No auth needed. */
+  appBundle: (role?: "patient" | "professional"): Promise<AppBundle> =>
+    request<AppBundle>(`/configs/app${qs({ role, platform: "web" })}`, { auth: false }),
 };
 
 export interface ProfessionalFilters {
@@ -249,6 +254,12 @@ export const adminApi = {
   professional: (id: string): Promise<AdminProfessionalDetail> => request(`/admin/professionals/${id}`),
   review: (id: string, input: ReviewDecisionInput): Promise<AdminProfessionalDetail> =>
     request(`/admin/professionals/${id}/review`, { method: "POST", body: json(input) }),
+  /** Approve or reject one KYC document (admin only). Returns the refreshed professional. */
+  reviewDocument: (professionalId: string, documentId: string, input: DocumentReviewInput): Promise<AdminProfessionalDetail> =>
+    request(`/admin/professionals/${professionalId}/documents/${documentId}/review`, { method: "POST", body: json(input) }),
+  /** Remove a KYC document and its file (admin only). Returns the refreshed professional. */
+  deleteDocument: (professionalId: string, documentId: string): Promise<AdminProfessionalDetail> =>
+    request(`/admin/professionals/${professionalId}/documents/${documentId}`, { method: "DELETE" }),
 
   users: (f: UserFilters): Promise<AdminPage<AdminUserListItem>> => request(`/admin/users${qs({ ...f })}`),
   setUserStatus: (id: string, status: "active" | "suspended", reason?: string): Promise<{ message: string }> =>
